@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200.000" height="1050.000" viewBox="0 0 1200.000 1050.000">
+<rect width="100%" height="100%" fill="#fffefa"/>
+<text x="75" y="45" font-family="Arial" font-size="40" font-weight="bold" fill="#1f2937">Beacon estimate errors, first 30 steps</text>
+<text x="75" y="85" font-family="Arial" font-size="26" fill="#7c3aed">Beacon position RMSE - ||x_hat_i(t)-x_i||</text>
+<text x="75" y="118" font-family="Arial" font-size="26" fill="#0891b2">Beacon yaw RMSE - ||psi_hat_i(t)-psi_i||</text>
+<line x1="160.000" y1="890.000" x2="1040.000" y2="890.000" stroke="#9ca3af"/>
+<line x1="160.000" y1="160.000" x2="160.000" y2="890.000" stroke="#9ca3af"/>
+<line x1="160.000" y1="890.000" x2="1040.000" y2="890.000" stroke="#e5e1d8" stroke-width="0.8"/>
+<text x="146.000" y="897.000" font-family="Arial" font-size="22" fill="#6b7280" text-anchor="end">0.000</text>
+<line x1="160.000" y1="707.500" x2="1040.000" y2="707.500" stroke="#e5e1d8" stroke-width="0.8"/>
+<text x="146.000" y="714.500" font-family="Arial" font-size="22" fill="#6b7280" text-anchor="end">2.016</text>
+<line x1="160.000" y1="525.000" x2="1040.000" y2="525.000" stroke="#e5e1d8" stroke-width="0.8"/>
+<text x="146.000" y="532.000" font-family="Arial" font-size="22" fill="#6b7280" text-anchor="end">4.032</text>
+<line x1="160.000" y1="342.500" x2="1040.000" y2="342.500" stroke="#e5e1d8" stroke-width="0.8"/>
+<text x="146.000" y="349.500" font-family="Arial" font-size="22" fill="#6b7280" text-anchor="end">6.047</text>
+<line x1="160.000" y1="160.000" x2="1040.000" y2="160.000" stroke="#e5e1d8" stroke-width="0.8"/>
+<text x="146.000" y="167.000" font-family="Arial" font-size="22" fill="#6b7280" text-anchor="end">8.063</text>
+<line x1="160.000" y1="160.000" x2="160.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="160.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">0</text>
+<line x1="248.000" y1="160.000" x2="248.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="248.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">3</text>
+<line x1="336.000" y1="160.000" x2="336.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="336.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">6</text>
+<line x1="424.000" y1="160.000" x2="424.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="424.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">9</text>
+<line x1="512.000" y1="160.000" x2="512.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="512.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">12</text>
+<line x1="600.000" y1="160.000" x2="600.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="600.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">15</text>
+<line x1="688.000" y1="160.000" x2="688.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="688.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">18</text>
+<line x1="776.000" y1="160.000" x2="776.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="776.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">21</text>
+<line x1="864.000" y1="160.000" x2="864.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="864.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">24</text>
+<line x1="952.000" y1="160.000" x2="952.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="952.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">27</text>
+<line x1="1040.000" y1="160.000" x2="1040.000" y2="890.000" stroke="#eee9df" stroke-width="0.7"/>
+<text x="1040.000" y="924.000" font-family="Arial" font-size="20" fill="#6b7280" text-anchor="middle">30</text>
+<text x="480.000" y="1022.000" font-family="Arial" font-size="28" font-weight="bold" fill="#374151">measurement step k</text>
+<text x="38" y="590.000" font-family="Arial" font-size="28" font-weight="bold" fill="#374151" transform="rotate(-90 38 590.000)">error metric</text>
+<polyline fill="none" stroke="#7c3aed" stroke-width="3" points="160.000,489.190 189.333,160.000 218.667,466.777 248.000,882.358 277.333,884.090 306.667,884.901 336.000,884.593 365.333,888.322 394.667,889.320 424.000,889.803 453.333,888.988 482.667,888.351 512.000,886.411 541.333,887.091 570.667,886.594 600.000,887.529 629.333,888.348 658.667,888.030 688.000,888.209 717.333,888.344 746.667,888.681 776.000,888.750 805.333,888.831 834.667,888.842 864.000,888.994 893.333,889.229 922.667,889.318 952.000,889.522 981.333,889.606 1010.667,889.591 1040.000,889.563 "/>
+<polyline fill="none" stroke="#0891b2" stroke-width="3" points="160.000,822.100 189.333,631.083 218.667,787.108 248.000,888.220 277.333,888.757 306.667,889.037 336.000,888.686 365.333,889.618 394.667,889.830 424.000,889.979 453.333,889.751 482.667,889.570 512.000,889.083 541.333,889.241 570.667,889.096 600.000,889.370 629.333,889.571 658.667,889.492 688.000,889.541 717.333,889.594 746.667,889.697 776.000,889.716 805.333,889.740 834.667,889.750 864.000,889.798 893.333,889.876 922.667,889.913 952.000,889.978 981.333,889.953 1010.667,889.953 1040.000,889.906 "/>
+</svg>
