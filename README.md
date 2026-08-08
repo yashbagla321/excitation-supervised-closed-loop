@@ -45,6 +45,22 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
+### Sanitizer build (optional, for development)
+
+```bash
+cmake --preset sanitize-debug
+cmake --build --preset sanitize-debug --config Debug
+```
+
+Builds Debug with AddressSanitizer (and UndefinedBehaviorSanitizer on
+Clang/GCC; MSVC only supports ASan) via `CMakePresets.json`, to catch
+out-of-bounds/undefined-behavior bugs in the hand-rolled pointer/array
+indexing used throughout the EKF and closed-loop controller. Requires
+CMake 3.21+. On MSVC, the ASan runtime DLL
+(`clang_rt.asan_dynamic-x86_64.dll`, under your Visual Studio
+installation's `VC/Tools/MSVC/<version>/bin/Hostx64/x64`) must be on
+`PATH` to run the resulting binary.
+
 ## Run
 
 ```powershell
@@ -68,8 +84,17 @@ different config path as the first argument.
 | `results/supervised_lambda_sweep.csv` | Table II (decay-rate sweep, fixed circular vs. supervised, lambda in {0.02,...,2.0}) |
 | `results/supervised_excitation_comparison.csv` | Section V-A nominal-scenario comparison (fixed vs. supervised beacon-position/yaw error when the fixed schedule happens to be adequate) |
 
-All error/RMSE/reset-count columns are seed-deterministic and will
-reproduce exactly.
+All error/RMSE/reset-count columns are seed-deterministic given a fixed
+`std::mt19937` stream, but exact bit-for-bit reproduction of the committed
+CSVs additionally requires the same C++ standard library implementation
+used to generate them (this repo's checked-in results were built with
+MSVC's STL on Windows): `std::normal_distribution`'s sample sequence for a
+given engine state is implementation-defined, not specified by the C++
+standard, so `sample_noise()` (`include/adaptive_localization/Math.hpp`)
+can draw a different-but-statistically-equivalent sequence on, e.g.,
+libstdc++ or libc++. Rebuilding on a different standard library will
+reproduce the same trends and conclusions but not necessarily identical
+values to the last decimal place.
 
 ## Figures
 
