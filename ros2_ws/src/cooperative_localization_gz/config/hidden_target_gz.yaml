@@ -1,0 +1,23 @@
+hidden_target_experiment_node:
+  ros__parameters:
+    scenario: 1
+    beacon_count: 1
+    seed: 42
+    output_dir: results/ros_gz
+
+measurement_emulator_node:
+  ros__parameters:
+    beacon_count: 1
+    path_steps: 80
+    seed: 42
+    range_sigma: 0.03
+    bearing_sigma: 0.006
+    dropout_probability: 0.0
+    trajectory: excited
+    output_dir: results/ros_gz
+
+hidden_target_batch_runner:
+  ros__parameters:
+    output_dir: results/ros_gz_batch
+    expanded_trials_per_case: 20
+    run_full_suite: false

@@ -1,0 +1,197 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <world name="hidden_target_validation">
+    <gravity>0 0 -9.81</gravity>
+
+    <!-- Fixed-step physics at real-time rate; the closed-loop node paces its
+         packet cadence on the bridged /clock, so the experiment timeline is
+         simulation time. -->
+    <physics name="fixed_step" type="ignored">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+
+    <scene>
+      <ambient>0.45 0.45 0.45 1</ambient>
+      <background>0.78 0.82 0.86 1</background>
+    </scene>
+
+    <light name="sun" type="directional">
+      <pose>0 0 8 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.4 0.2 -1</direction>
+    </light>
+
+    <model name="ground">
+      <static>true</static>
+      <link name="ground_link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>10 10</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>10 10</size>
+            </plane>
+          </geometry>
+          <material>
+            <diffuse>0.88 0.88 0.86 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Planar holonomic vehicle: velocity commands from the supervised
+         closed-loop node arrive on /model/vehicle/cmd_vel through
+         ros_gz_bridge and are integrated by the Gazebo physics engine; the
+         pose the estimator consumes is the odometry published back by the
+         OdometryPublisher system. Gravity is disabled on the link and no
+         collision geometry is attached, so the model is a clean kinematic
+         plant that cannot pick up spurious contact torques (the vehicle
+         model of the paper is a planar single integrator). -->
+    <model name="vehicle">
+      <pose>-3.0 2.6 0.15 0 0 0</pose>
+      <link name="base_link">
+        <gravity>false</gravity>
+        <inertial>
+          <mass>1.0</mass>
+          <inertia>
+            <ixx>0.01</ixx>
+            <iyy>0.01</iyy>
+            <izz>0.01</izz>
+          </inertia>
+        </inertial>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.36 0.24 0.16</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.12 0.32 0.90 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"/>
+      <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+        <odom_publish_frequency>50</odom_publish_frequency>
+      </plugin>
+    </model>
+
+    <model name="hidden_target">
+      <pose>1.2 -0.75 0.15 0 0 0</pose>
+      <static>true</static>
+      <link name="target_link">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.16</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <diffuse>0.92 0.18 0.12 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="target_estimate">
+      <pose>0.0 0.0 0.15 0 0 0</pose>
+      <static>true</static>
+      <link name="estimate_link">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.13</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <diffuse>0.08 0.45 0.95 0.75</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beacon_0">
+      <pose>-2.2 -1.4 0.2 0 0 0.75</pose>
+      <static>true</static>
+      <link name="beacon_link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.12</radius>
+              <length>0.4</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <diffuse>0.10 0.70 0.34 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beacon_1">
+      <pose>2.4 1.7 0.2 0 0 -1.15</pose>
+      <static>true</static>
+      <link name="beacon_link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.12</radius>
+              <length>0.4</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <diffuse>0.10 0.70 0.34 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beacon_estimate_0">
+      <pose>2.0 0.0 0.16 0 0 0</pose>
+      <static>true</static>
+      <link name="estimate_link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.08</radius>
+              <length>0.32</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <diffuse>0.05 0.42 0.95 0.7</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="beacon_estimate_1">
+      <pose>-2.0 0.0 0.16 0 0 0</pose>
+      <static>true</static>
+      <link name="estimate_link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.08</radius>
+              <length>0.32</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <diffuse>0.05 0.42 0.95 0.7</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

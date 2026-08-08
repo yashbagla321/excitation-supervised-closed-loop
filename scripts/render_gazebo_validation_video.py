@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-"""Render a ROS/Gazebo-style validation video from simulator CSV outputs.
+"""Render a validation video from the Gazebo software-in-the-loop run's log.
 
 Module responsibility: this script does no simulation of its own and talks
-to no live ROS/Gazebo process. It replays a trajectory CSV and a
-beacon-estimates CSV, both already written by the C++ binary (src/main.cpp,
-running in adaptive::ClosedLoopExcitationMode::Supervised), frame-by-frame
-into an MP4 that visually mimics a Gazebo/ROS 2 top-down validation view
-(map + live error plot + status text), plus a single still thumbnail. It is
-the animated counterpart of scripts/render_gazebo_panel.py, which renders
-one frozen frame of the same data as a static print figure; the on-screen
-text ("Video evidence is middleware/simulation validation. It does not claim
-physical robot sensing.") is accurate to what this script actually does — it
-paints matplotlib/PIL-style graphics from CSV numbers, not footage of a
-running Gazebo instance."""
+to no live ROS/Gazebo process. It replays the CSV logged by the ROS 2
+supervised closed-loop node while it steered the Gazebo vehicle
+(ros2_ws/src/cooperative_localization_gz, results/ros_gz/
+closed_loop_gz_run.csv: Gazebo-odometry poses plus the node's online
+estimates), frame-by-frame into an MP4 (map + live error plot + status
+text), plus a single still thumbnail. It is the animated counterpart of
+scripts/render_gazebo_panel.py, which renders one frozen frame of the same
+data as a static print figure; the on-screen text is accurate to what this
+script actually does — it paints PIL graphics from the logged run's
+numbers, not screen footage of the Gazebo GUI. Pass --trajectory to replay
+a batch-simulator CSV instead (the per-step beacon-estimate columns are
+then read from --beacons)."""
 
 from __future__ import annotations
 
@@ -405,13 +406,19 @@ def render_frame(
 
     for beacon in beacons[:1]:
         true_xy = (beacon["true_x"], beacon["true_y"])
-        est_xy = (beacon["estimate_x"], beacon["estimate_y"])
+        # Prefer the per-step beacon estimate logged by the Gazebo node (so
+        # the marker animates with the run); fall back to the static final
+        # estimate from the separate beacon-estimates CSV.
+        if "beacon_estimate_x" in row:
+            est_xy = (row["beacon_estimate_x"], row["beacon_estimate_y"])
+        else:
+            est_xy = (beacon["estimate_x"], beacon["estimate_y"])
         draw_marker(draw, world_to_px(*true_xy, map_box), (234, 88, 12), "square", "true beacon")
         draw_marker(draw, world_to_px(*est_xy, map_box), (125, 90, 233), "square", "estimated beacon", (9, 8))
 
     draw_error_plot(draw, rows, idx, (748, 112, 1216, 388))
     draw_text_panel(draw, row, idx, len(rows), (748, 414, 1216, 660))
-    draw.text((84, 676), "Video evidence is middleware/simulation validation. It does not claim physical robot sensing.", fill=(70, 78, 88), font=FONT_S)
+    draw.text((84, 676), "Software-in-the-loop validation (ROS 2 node + Gazebo physics). It does not claim physical robot sensing.", fill=(70, 78, 88), font=FONT_S)
     return img
 
 
@@ -447,7 +454,7 @@ def main() -> None:
       5. Print the output video and thumbnail paths.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trajectory", type=Path, default=Path("results/closed_loop_local_1beacon.csv"))
+    parser.add_argument("--trajectory", type=Path, default=Path("results/ros_gz/closed_loop_gz_run.csv"))
     parser.add_argument("--beacons", type=Path, default=Path("results/beacon_estimates_local_1beacon.csv"))
     parser.add_argument("--output", type=Path, default=Path("figures/ros_gazebo_validation_demo.mp4"))
     parser.add_argument("--thumbnail", type=Path, default=Path("figures/ros_gazebo_validation_thumbnail.png"))
@@ -455,7 +462,18 @@ def main() -> None:
     args = parser.parse_args()
 
     rows = read_rows(args.trajectory)
-    beacons = read_beacons(args.beacons)
+    if rows and "beacon_estimate_x" in rows[0]:
+        # Gazebo-node log: the beacon estimate is logged per step, so the
+        # separate beacon-estimates CSV is not needed. The true beacon pose
+        # comes from the world definition (make_world in src/World.cpp).
+        beacons = [{
+            "true_x": -2.2,
+            "true_y": -1.4,
+            "estimate_x": rows[-1]["beacon_estimate_x"],
+            "estimate_y": rows[-1]["beacon_estimate_y"],
+        }]
+    else:
+        beacons = read_beacons(args.beacons)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.thumbnail.parent.mkdir(parents=True, exist_ok=True)
 

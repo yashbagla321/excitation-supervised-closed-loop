@@ -1,16 +1,19 @@
 """Render the two-panel software-in-the-loop summary (map view + convergence
 errors) used in the paper's Fig. 4, drawn at print resolution directly from
-the replay CSVs rather than cropped from the demo video's thumbnail.
+the Gazebo run's logged CSV.
 
 Module responsibility: this script does no simulation. It is a static,
-single-image renderer: it reads the flagship excitation-supervised run's
-trajectory CSV and beacon-estimate CSV (both written by the C++ binary, see
-src/main.cpp) and paints a fixed-layout, two-panel PNG (world-frame map on
-the left, log-scale convergence-error traces on the right) frozen at one
-"replay" step. It shares its pixel-mapping and drawing approach with
-scripts/render_gazebo_validation_video.py, which renders the same data as an
-animated sequence instead of one static frame; the two are not required to
-produce visually identical output."""
+single-image renderer: it reads the CSV logged by the ROS 2 supervised
+closed-loop node while it steered the Gazebo vehicle
+(results/ros_gz/closed_loop_gz_run.csv, written by
+ros2_ws/src/cooperative_localization_gz's supervised_closed_loop_node: the
+vehicle poses are Gazebo odometry and the estimates are what the node
+computed online from the delayed packets) and paints a fixed-layout,
+two-panel PNG (world-frame map on the left, log-scale convergence-error
+traces on the right) frozen at one replay step. It shares its pixel-mapping
+and drawing approach with scripts/render_gazebo_validation_video.py, which
+renders the same data as an animated sequence instead of one static frame;
+the two are not required to produce visually identical output."""
 
 from __future__ import annotations
 
@@ -38,7 +41,7 @@ def load_numeric_rows(path: Path) -> list[dict[str, float]]:
     """
     with path.open(newline="") as handle:
         return [
-            {key: float(value) for key, value in row.items()}
+            {key: float(value) for key, value in row.items() if value != ""}
             for row in csv.DictReader(handle)
         ]
 
@@ -80,22 +83,22 @@ def draw_vertical_text(
 def render_gazebo_panel() -> None:
     """Render `figures/ros_gazebo_validation_compact.png`, the two-panel figure.
 
-    Takes no parameters and returns nothing. Reads the first 60 steps of
-    `results/closed_loop_local_1beacon.csv` (the flagship excitation-supervised,
-    one-beacon closed-loop run) and the first row of
-    `results/beacon_estimates_local_1beacon.csv`, then draws:
+    Takes no parameters and returns nothing. Reads packets 0..60 of
+    `results/ros_gz/closed_loop_gz_run.csv` (the Gazebo software-in-the-loop
+    run logged by the ROS 2 supervised closed-loop node), then draws:
 
-    - Left panel ("map"): the full 60-step vehicle path in light grey, with
-      the prefix up to `replay_step` (25, chosen as a point where the
+    - Left panel ("map"): the full 60-packet vehicle path in light grey,
+      with the prefix up to `replay_step` (25, chosen as a point where the
       estimate has visibly started converging but is still clearly separated
       from the truth — a deliberate mid-run snapshot, not the final step)
       highlighted in blue. Markers show the vehicle position, the true
       target (fixed at (1.2, -0.75), matching World::make_world's hardcoded
       target — see src/World.cpp), the current target estimate, and the true
-      vs. estimated beacon position, connected by a line from vehicle to
-      target estimate.
+      vs. estimated beacon position (true pose from the world definition,
+      estimate from the run's final logged beacon estimate), connected by a
+      line from vehicle to target estimate.
     - Right panel ("errors"): log10-scale traces (clipped to [1e-4, 1e1])
-      of all 60 steps' goal error (robot-to-target distance), target
+      of all 60 packets' goal error (robot-to-target distance), target
       estimation error, beacon position RMSE, and beacon yaw RMSE, each on
       its own color, with a vertical marker line at `replay_step` tying the
       two panels to the same moment in the run.
@@ -104,9 +107,15 @@ def render_gazebo_panel() -> None:
     text) rather than a plotting library, so the output matches the paper's
     print typography/line weights exactly instead of a library's defaults.
     """
-    rows = load_numeric_rows(RESULTS / "closed_loop_local_1beacon.csv")[:60]
-    with (RESULTS / "beacon_estimates_local_1beacon.csv").open(newline="") as handle:
-        beacon = {key: float(value) for key, value in next(csv.DictReader(handle)).items()}
+    rows = load_numeric_rows(RESULTS / "ros_gz" / "closed_loop_gz_run.csv")[:61]
+    # True beacon pose from the world definition; estimated beacon from the
+    # run's final logged estimate.
+    beacon = {
+        "true_x": -2.2,
+        "true_y": -1.4,
+        "estimate_x": rows[-1]["beacon_estimate_x"],
+        "estimate_y": rows[-1]["beacon_estimate_y"],
+    }
     replay_step = 25  # mid-replay cursor: converging but still clearly separated
 
     image = Image.new("RGB", (2010, 860), "#ffffff")

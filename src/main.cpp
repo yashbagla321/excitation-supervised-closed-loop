@@ -24,8 +24,17 @@ namespace {
 //     schedule vs. the excitation-supervised controller (Algorithm 1), for
 //     both the nominal and understimulated scenarios.
 //   - `supervised_lambda_sweep.csv`: rows from run_supervised_lambda_sweep(),
-//     sweeping the fixed schedule's decay rate lambda and recording how each
-//     side of the comparison fares at every value.
+//     sweeping the fixed schedule's decay rate lambda over a paired Monte
+//     Carlo batch and recording how each side of the comparison fares at
+//     every value.
+//   - `supervised_seeking_comparison.csv`: rows from
+//     run_supervised_seeking_comparison(), the nontrivial target-seeking
+//     Monte Carlo comparison where only the excitation policy can supply
+//     the spread needed to calibrate.
+//   - `supervised_threshold_ablation.csv`: rows from
+//     run_supervised_threshold_ablation(), the Monte Carlo ablation over
+//     the supervisor's spread threshold S_bar testing the accuracy-driven
+//     design rule against measured yaw RMSE and excitation cost.
 //   - `closed_loop_local_1beacon.csv` / `beacon_estimates_local_1beacon.csv`
 //     plus three SVGs: the single flagship excitation-supervised, one-beacon,
 //     local-frame closed-loop run (`local_single_beacon`) that the paper's
@@ -35,8 +44,12 @@ namespace {
 //   output_dir: directory (already created by the caller) to write into.
 //   supervised_excitation_rows: fixed-vs-supervised comparison rows for the
 //     nominal and understimulated scenarios.
-//   supervised_lambda_rows: fixed-vs-supervised comparison rows, one per
-//     swept decay-rate lambda.
+//   supervised_lambda_rows: fixed-vs-supervised Monte Carlo comparison rows,
+//     one per swept decay-rate lambda.
+//   supervised_seeking_rows: target-seeking Monte Carlo comparison rows, one
+//     per excitation policy.
+//   supervised_threshold_rows: spread-threshold ablation rows, one per
+//     candidate S_bar.
 //   local_single_beacon: the flagship supervised, one-beacon closed-loop run
 //     whose trajectory/error/beacon-estimate history is exported to CSV/SVG.
 // Returns: nothing; all outputs are written to disk as a side effect.
@@ -44,11 +57,17 @@ void write_all_outputs(
     const std::filesystem::path& output_dir,
     const std::vector<adaptive::SupervisedExcitationComparisonRow>& supervised_excitation_rows,
     const std::vector<adaptive::SupervisedLambdaSweepRow>& supervised_lambda_rows,
+    const std::vector<adaptive::SupervisedSeekingComparisonRow>& supervised_seeking_rows,
+    const std::vector<adaptive::SupervisedThresholdAblationRow>& supervised_threshold_rows,
     const adaptive::ClosedLoopResult& local_single_beacon) {
     adaptive::write_supervised_excitation_comparison_csv(
         output_dir / "supervised_excitation_comparison.csv", supervised_excitation_rows);
     adaptive::write_supervised_lambda_sweep_csv(
         output_dir / "supervised_lambda_sweep.csv", supervised_lambda_rows);
+    adaptive::write_supervised_seeking_comparison_csv(
+        output_dir / "supervised_seeking_comparison.csv", supervised_seeking_rows);
+    adaptive::write_supervised_threshold_ablation_csv(
+        output_dir / "supervised_threshold_ablation.csv", supervised_threshold_rows);
     adaptive::write_closed_loop_csv(output_dir / "closed_loop_local_1beacon.csv", local_single_beacon);
     adaptive::write_beacon_estimate_csv(output_dir / "beacon_estimates_local_1beacon.csv", local_single_beacon);
     adaptive::write_svg_plot(output_dir / "closed_loop_local_1beacon.svg", local_single_beacon);
@@ -70,6 +89,8 @@ void print_run_summary(const adaptive::SimulationConfig& config, const std::file
     std::cout << "Output directory: " << config.output_dir.string() << "\n\n";
     std::cout << "Wrote " << (config.output_dir / "supervised_excitation_comparison.csv").string() << "\n";
     std::cout << "Wrote " << (config.output_dir / "supervised_lambda_sweep.csv").string() << "\n";
+    std::cout << "Wrote " << (config.output_dir / "supervised_seeking_comparison.csv").string() << "\n";
+    std::cout << "Wrote " << (config.output_dir / "supervised_threshold_ablation.csv").string() << "\n";
     std::cout << "Wrote " << (config.output_dir / "closed_loop_local_1beacon.csv").string() << "\n";
     std::cout << "Wrote " << (config.output_dir / "beacon_estimates_local_1beacon.csv").string() << "\n";
     std::cout << "Wrote " << (config.output_dir / "closed_loop_local_1beacon.svg").string() << "\n";
@@ -79,7 +100,7 @@ void print_run_summary(const adaptive::SimulationConfig& config, const std::file
 
 }  // namespace
 
-// Drives the three studies this CDC-paper entry point exists to produce, then
+// Drives the five studies this CDC-paper entry point exists to produce, then
 // writes their outputs. Split out from main() so exceptions can be caught in
 // one place (see main()) while this function's control flow stays linear and
 // easy to read top-to-bottom.
@@ -104,16 +125,26 @@ void print_run_summary(const adaptive::SimulationConfig& config, const std::file
 //      pose, moderate decay, the same defaults used throughout the rest of
 //      the paper) and understimulated (robot starts exactly at the true
 //      target and the fixed schedule decays fast, so only an excitation
-//      controller that can retrigger — via the trajectory-spread margin and
-//      observability-conditioning check described in Simulation.cpp — keeps
-//      the geometry identifiable). This is the head-to-head fixed-circular
-//      vs. supervised comparison the paper's results table is built from.
+//      controller that can retrigger — on the trajectory-spread certificate
+//      S_v described in Simulation.cpp — keeps the geometry identifiable).
+//      This is the head-to-head fixed-circular vs. supervised comparison the
+//      paper's results table is built from.
 //   3. Decay-rate lambda sweep (run_supervised_lambda_sweep): repeats the
 //      understimulated-style, no-transient comparison across a range of
-//      fixed-schedule decay rates lambda, to show the supervised controller
-//      is robust to not knowing the "right" lambda in advance, rather than
-//      only beating one hand-picked worst case.
-//   4. Flagship single-beacon run: seeds a dedicated RNG from
+//      fixed-schedule decay rates lambda over a paired Monte Carlo batch, to
+//      show the supervised controller is robust to not knowing the "right"
+//      lambda in advance, rather than only beating one hand-picked worst
+//      case.
+//   4. Target-seeking comparison (run_supervised_seeking_comparison): the
+//      nontrivial Monte Carlo scenario where the vehicle starts at its own
+//      (wrong) initial target estimate, so the seeking control term is
+//      initially quiescent and target-seeking success depends entirely on
+//      the excitation policy supplying the calibrating spread.
+//   5. Spread-threshold ablation (run_supervised_threshold_ablation): Monte
+//      Carlo ablation over the supervisor's threshold S_bar, testing the
+//      accuracy-driven design rule eps_psi = sigma / sqrt(S_bar) against
+//      the measured yaw RMSE and the excitation cost of each threshold.
+//   6. Flagship single-beacon run: seeds a dedicated RNG from
 //      config.closed_loop_seed and runs one local-frame, one-beacon
 //      closed-loop trial explicitly in
 //      adaptive::ClosedLoopExcitationMode::Supervised. This is the run whose
@@ -121,7 +152,7 @@ void print_run_summary(const adaptive::SimulationConfig& config, const std::file
 //      the Gazebo replay video (see scripts/render_gazebo_panel.py and
 //      scripts/render_gazebo_validation_video.py) are drawn from, so it must
 //      use the supervised controller rather than the fixed baseline.
-//   5. Output: hand all three studies' results to write_all_outputs() and
+//   7. Output: hand all five studies' results to write_all_outputs() and
 //      print_run_summary().
 int run_main(int argc, char** argv) {
     const std::filesystem::path config_path = argc > 1 ? argv[1] : "config/simulation.ini";
@@ -131,6 +162,8 @@ int run_main(int argc, char** argv) {
 
     const auto supervised_excitation_rows = adaptive::run_supervised_excitation_comparison(config);
     const auto supervised_lambda_rows = adaptive::run_supervised_lambda_sweep(config);
+    const auto supervised_seeking_rows = adaptive::run_supervised_seeking_comparison(config);
+    const auto supervised_threshold_rows = adaptive::run_supervised_threshold_ablation(config);
 
     std::mt19937 closed_loop_rng(config.closed_loop_seed);
     // The single-beacon flagship run is this paper's Algorithm 1 artifact,
@@ -138,7 +171,13 @@ int run_main(int argc, char** argv) {
     const auto closed_loop_s1_single = adaptive::run_closed_loop_comparison(
         1, 1, config, closed_loop_rng, adaptive::ClosedLoopExcitationMode::Supervised);
 
-    write_all_outputs(config.output_dir, supervised_excitation_rows, supervised_lambda_rows, closed_loop_s1_single);
+    write_all_outputs(
+        config.output_dir,
+        supervised_excitation_rows,
+        supervised_lambda_rows,
+        supervised_seeking_rows,
+        supervised_threshold_rows,
+        closed_loop_s1_single);
     print_run_summary(config, config_path);
     return 0;
 }

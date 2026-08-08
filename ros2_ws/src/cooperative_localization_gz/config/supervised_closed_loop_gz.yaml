@@ -1,0 +1,45 @@
+supervised_closed_loop_node:
+  ros__parameters:
+    # Packet budget and cadence (simulation time): 120 packets at 80 ms,
+    # matching the batch simulator's closed-loop horizon and step size.
+    packet_count: 120
+    packet_period: 0.08
+
+    # Controller and excitation schedule -- the same values as the batch
+    # simulator's flagship run (config/simulation.ini at the repo root).
+    control_gain: 1.2
+    exploration_amplitude: 0.25
+    exploration_decay: 0.035
+    exploration_frequency: 0.45
+
+    # Accuracy-driven supervision threshold S_bar = sigma^2 / eps_psi^2 with
+    # range sigma 0.02 m and the declared 0.05-rad yaw-RMSE criterion.
+    spread_threshold: 0.16
+
+    # Emulated range--bearing packet noise.
+    range_sigma: 0.02
+    bearing_sigma: 0.004
+
+    # Packets are delivered to the estimator this many control cycles after
+    # they are taken (sensing latency); actuation latency arises naturally
+    # from the bridge transport and Gazebo's zero-order-hold integration.
+    sensing_delay_packets: 1
+
+    # Gauss--Newton settings, identical to the batch simulator.
+    solver_max_iterations: 25
+    solver_initial_lambda: 0.01
+
+    # Estimator initialization: unknown target seeded at the origin, beacon
+    # guess on a 2 m ring at yaw 0.
+    initial_target_estimate_x: 0.0
+    initial_target_estimate_y: 0.0
+    initial_beacon_guess_radius: 2.0
+    initial_beacon_guess_yaw: 0.0
+
+    # Move the translucent estimate markers in the Gazebo scene each packet
+    # (via the bridged set_pose service) so recordings show convergence.
+    update_estimate_markers: true
+    world_name: "hidden_target_validation"
+
+    output_dir: "results/ros_gz"
+    output_name: "closed_loop_gz_run.csv"
