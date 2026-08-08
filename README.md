@@ -81,13 +81,15 @@ reproduce exactly.
 - `figures/ros_gazebo_validation_compact.png` — the two-panel
   software-in-the-loop summary (Fig. 4: map view + convergence errors),
   drawn at print resolution directly from the same run's CSVs. Regenerate
-  with `python scripts/render_gazebo_panel.py` (needs Pillow:
-  `pip install Pillow`).
+  with `python scripts/render_gazebo_panel.py`.
 - `scripts/render_gazebo_validation_video.py` — renders the full
   ROS 2/Gazebo-style replay video and thumbnail frame-by-frame from the
-  same CSVs (needs `imageio`, `numpy`, and Pillow:
-  `pip install imageio numpy Pillow`); this is supplementary material, not
-  itself one of the paper's print figures.
+  same CSVs; this is supplementary material, not itself one of the
+  paper's print figures. Needs an `imageio` video backend to write the
+  `.mp4` itself (see `requirements.txt`).
+
+Python scripts depend on Pillow, numpy, and imageio; install with
+`pip install -r requirements.txt`.
 
 ## Citation
 

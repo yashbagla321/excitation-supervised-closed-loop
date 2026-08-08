@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""Render a ROS/Gazebo-style validation video from simulator CSV outputs."""
+"""Render a ROS/Gazebo-style validation video from simulator CSV outputs.
+
+Module responsibility: this script does no simulation of its own and talks
+to no live ROS/Gazebo process. It replays a trajectory CSV and a
+beacon-estimates CSV, both already written by the C++ binary (src/main.cpp,
+running in adaptive::ClosedLoopExcitationMode::Supervised), frame-by-frame
+into an MP4 that visually mimics a Gazebo/ROS 2 top-down validation view
+(map + live error plot + status text), plus a single still thumbnail. It is
+the animated counterpart of scripts/render_gazebo_panel.py, which renders
+one frozen frame of the same data as a static print figure; the on-screen
+text ("Video evidence is middleware/simulation validation. It does not claim
+physical robot sensing.") is accurate to what this script actually does — it
+paints matplotlib/PIL-style graphics from CSV numbers, not footage of a
+running Gazebo instance."""
 
 from __future__ import annotations
 
@@ -12,6 +25,7 @@ import imageio.v2 as imageio
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from plot_fonts import load_font
 
 WIDTH = 1280
 HEIGHT = 720
@@ -20,17 +34,10 @@ WORLD_X = (-4.0, 4.0)
 WORLD_Y = (-3.2, 3.4)
 
 
-def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    candidates = [
-        Path("C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf"),
-        Path("C:/Windows/Fonts/segoeuib.ttf" if bold else "C:/Windows/Fonts/segoeui.ttf"),
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return ImageFont.truetype(str(candidate), size)
-    return ImageFont.load_default()
-
-
+# Module-level font cache: every frame reuses the same handful of font sizes
+# for headers/labels/legends, so they are loaded once here rather than
+# re-loaded (and re-probed for font-file existence) on every render_frame()
+# call across a video that may run to hundreds of frames.
 FONT_XL = load_font(34, True)
 FONT_L = load_font(24, True)
 FONT_M = load_font(20)
@@ -41,6 +48,18 @@ FONT_XS = load_font(13)
 
 
 def read_rows(path: Path) -> list[dict[str, float]]:
+    """Read the per-step closed-loop trajectory CSV into a list of row dicts.
+
+    Each row of the CSV (step index, robot position, target estimate,
+    error metrics, etc., as written by adaptive::write_closed_loop_csv) is
+    converted to a dict of column name -> float. An empty string value is
+    mapped to NaN rather than raising, so an optional/missing field in a row
+    (if any) does not abort the whole read.
+
+    Parameters:
+        path: path to the trajectory CSV (default: results/closed_loop_local_1beacon.csv).
+    Returns: one dict per row, in file order, keyed by CSV column name.
+    """
     with path.open(newline="") as f:
         reader = csv.DictReader(f)
         rows: list[dict[str, float]] = []
@@ -53,6 +72,19 @@ def read_rows(path: Path) -> list[dict[str, float]]:
 
 
 def read_beacons(path: Path) -> list[dict[str, float]]:
+    """Read the beacon-estimate CSV (true vs. estimated beacon pose) into row dicts.
+
+    Same float-parsing/NaN-on-empty behavior as read_rows(), kept as a
+    separate function because it reads a semantically different file
+    (one row per beacon, with true_x/true_y/estimate_x/estimate_y/... columns
+    from adaptive::write_beacon_estimate_csv) rather than one row per
+    simulation step.
+
+    Parameters:
+        path: path to the beacon-estimate CSV (default:
+            results/beacon_estimates_local_1beacon.csv).
+    Returns: one dict per beacon row, keyed by CSV column name.
+    """
     with path.open(newline="") as f:
         reader = csv.DictReader(f)
         out = []
@@ -62,6 +94,18 @@ def read_beacons(path: Path) -> list[dict[str, float]]:
 
 
 def world_to_px(x: float, y: float, box: tuple[int, int, int, int]) -> tuple[int, int]:
+    """Map a world-frame (x, y) coordinate to an integer pixel inside `box`.
+
+    Linearly rescales x from the module-level WORLD_X range and y from
+    WORLD_Y into the pixel rectangle `box = (left, top, right, bottom)`,
+    flipping the y axis (image rows increase downward, world y increases
+    upward) and rounding to the nearest pixel for crisp PIL drawing calls.
+
+    Parameters:
+        x, y: world-frame coordinates (meters) to project.
+        box: destination pixel rectangle as (left, top, right, bottom).
+    Returns: the (px, py) pixel coordinates, rounded to the nearest int.
+    """
     left, top, right, bottom = box
     px = left + (x - WORLD_X[0]) / (WORLD_X[1] - WORLD_X[0]) * (right - left)
     py = bottom - (y - WORLD_Y[0]) / (WORLD_Y[1] - WORLD_Y[0]) * (bottom - top)
@@ -69,6 +113,21 @@ def world_to_px(x: float, y: float, box: tuple[int, int, int, int]) -> tuple[int
 
 
 def draw_grid(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int]) -> None:
+    """Draw the map panel's background card, axis gridlines, and axis labels.
+
+    Fills `box` with a light rounded-rectangle background, then draws one
+    vertical gridline per integer world-x coordinate and one horizontal
+    gridline per integer world-y coordinate (each covering the whole span
+    of WORLD_X/WORLD_Y that is visible in `box`), darkening the line that
+    passes through the corresponding world axis (x=0 or y=0) so the origin
+    is easy to spot. Meant to be called once per frame before any
+    trajectory/marker drawing, so the grid sits underneath the data.
+
+    Parameters:
+        draw: the ImageDraw context to draw into (mutated).
+        box: the map panel's pixel rectangle as (left, top, right, bottom).
+    Returns: nothing; `draw`'s target image is modified in place.
+    """
     left, top, right, bottom = box
     draw.rounded_rectangle(box, radius=10, fill=(250, 250, 247), outline=(211, 216, 222), width=2)
     for x in range(math.ceil(WORLD_X[0]), math.floor(WORLD_X[1]) + 1):
@@ -94,6 +153,21 @@ def draw_polyline(
     color: tuple[int, int, int],
     width: int,
 ) -> None:
+    """Draw a world-frame polyline (e.g. the traveled path) into the map panel.
+
+    Projects every (x, y) point through world_to_px() and connects them with
+    a single curved-join line. A no-op when fewer than 2 points are given
+    (e.g. rendering frame 0, before any path has been traveled), since PIL's
+    draw.line() needs at least two points.
+
+    Parameters:
+        draw: the ImageDraw context to draw into (mutated).
+        points: world-frame (x, y) coordinates to connect, in order.
+        box: the map panel's pixel rectangle, passed through to world_to_px().
+        color: line color as an (r, g, b) tuple.
+        width: line width in pixels.
+    Returns: nothing; `draw`'s target image is modified in place.
+    """
     if len(points) < 2:
         return
     draw.line([world_to_px(x, y, box) for x, y in points], fill=color, width=width, joint="curve")
@@ -107,6 +181,27 @@ def draw_marker(
     label: str,
     label_offset: tuple[int, int] = (9, -19),
 ) -> None:
+    """Draw one labeled map marker (vehicle, target, estimate, or beacon).
+
+    `shape` selects which glyph is drawn at pixel position `xy`: "circle"
+    for the vehicle, "star" for the true target, "diamond" for the target
+    estimate, and "square" for beacon markers (true and estimated, in
+    different colors — see render_frame()). Every shape is followed by a
+    text label offset from the marker center by `label_offset`, which
+    callers tune per-marker to keep labels from overlapping the glyph or
+    each other.
+
+    Parameters:
+        draw: the ImageDraw context to draw into (mutated).
+        xy: pixel coordinates of the marker center.
+        color: fill color for both the glyph and its label text.
+        shape: one of "circle", "square", "diamond", "star"; any other value
+            draws only the label with no glyph (falls through the if/elif
+            chain silently).
+        label: text drawn next to the marker.
+        label_offset: (dx, dy) pixel offset from `xy` at which to draw `label`.
+    Returns: nothing; `draw`'s target image is modified in place.
+    """
     x, y = xy
     if shape == "circle":
         draw.ellipse((x - 7, y - 7, x + 7, y + 7), fill=color, outline=(20, 25, 30), width=2)
@@ -130,6 +225,27 @@ def draw_error_plot(
     idx: int,
     box: tuple[int, int, int, int],
 ) -> None:
+    """Draw the log-scale convergence-error subplot for the current frame.
+
+    Plots the same four series as scripts/render_gazebo_panel.py (robot-target
+    distance, target-estimate error, beacon position RMSE, beacon yaw RMSE)
+    on a shared log10 y-axis, over a fixed window of the first `n = min(60,
+    len(rows))` steps (the video does not rescale the x-axis as more frames
+    play beyond step 60; the plotted curves always stop at step n-1). Values
+    are floored to 1e-4 before taking the log so a converged-to-zero error
+    still has a finite y position. A vertical cursor line tracks the current
+    frame index `idx` while `idx < n`, then stays pinned at the right edge
+    (x position for step n-1) for any later frame, since `marker_x` is
+    computed from `min(idx, n - 1)`. A small legend below the plot names
+    each series/color.
+
+    Parameters:
+        draw: the ImageDraw context to draw into (mutated).
+        rows: the full per-step trajectory rows (as returned by read_rows()).
+        idx: the current frame's step index, used to place the cursor line.
+        box: this subplot's pixel rectangle as (left, top, right, bottom).
+    Returns: nothing; `draw`'s target image is modified in place.
+    """
     left, top, right, bottom = box
     draw.rounded_rectangle(box, radius=8, fill=(255, 255, 255), outline=(211, 216, 222), width=2)
     draw.text((left + 18, top + 12), "Convergence errors, first 60 measurement steps", fill=(32, 39, 48), font=FONT_MB)
@@ -181,6 +297,28 @@ def draw_text_panel(
     total: int,
     box: tuple[int, int, int, int],
 ) -> None:
+    """Draw the status/caption card: step counter, live metrics, and disclaimers.
+
+    Renders a fixed block of caption lines describing what the video is
+    (same estimator core as the batch Monte Carlo/robustness suite; a
+    simulated ROS 2/Gazebo validation track, not a physical-hardware
+    experiment) interleaved with the current frame's live numeric readout
+    (step index out of `total - 1`, and the same four error metrics plotted
+    in draw_error_plot: goal error, target error, beacon position RMSE,
+    beacon yaw RMSE). Metric lines are drawn bold (FONT_SB); the rest of the
+    caption text is regular weight (FONT_S). `idx` is accepted for a
+    consistent call signature with the other per-frame draw_*() helpers but
+    is not read directly here — `row` (already indexed by the caller) supplies
+    the numbers actually drawn.
+
+    Parameters:
+        draw: the ImageDraw context to draw into (mutated).
+        row: the current frame's trajectory row (one entry of `rows`).
+        idx: current frame index (unused in this function's own logic).
+        total: total number of trajectory rows, used for the "n / total-1" caption.
+        box: this panel's pixel rectangle as (left, top, right, bottom).
+    Returns: nothing; `draw`'s target image is modified in place.
+    """
     left, top, right, bottom = box
     draw.rounded_rectangle(box, radius=8, fill=(247, 249, 252), outline=(211, 216, 222), width=2)
     draw.text((left + 18, top + 14), "ROS 2 / Gazebo validation track", fill=(32, 39, 48), font=FONT_MB)
@@ -209,6 +347,41 @@ def render_frame(
     beacons: list[dict[str, float]],
     idx: int,
 ) -> Image.Image:
+    """Compose one full 1280x720 video frame at step `idx`.
+
+    Lays out the whole frame: a dark title bar, the map panel (left), the
+    error-convergence plot and status/caption panel (right column, stacked),
+    and a one-line disclaimer along the bottom. This is the single function
+    called once per output frame by main()'s encoding loop, and is also
+    reused directly to render the still thumbnail image.
+
+    Map panel contents, in draw order:
+      1. draw_grid() for the background grid.
+      2. The full trajectory in light grey (`full_path`, all rows) so the
+         whole run's extent is always visible, with the traveled prefix up
+         to and including `idx` (`current_path`) redrawn in bold blue on top
+         — the "played so far" portion of the path.
+      3. A connecting line from the current robot position `q(k)` to the
+         current target estimate `p_hat`, then markers for the robot
+         (circle), the fixed true target (star, at module-level TARGET_TRUE
+         = (1.2, -0.75), matching World::make_world in src/World.cpp), and
+         the target estimate (diamond).
+      4. The first beacon's true and estimated position (square markers, two
+         colors) — `beacons[:1]` because this flagship scenario has exactly
+         one beacon; the slice is defensive rather than a real multi-beacon
+         selection.
+
+    The right column then draws draw_error_plot() (fixed 60-step error
+    traces with a cursor at `idx`) above draw_text_panel() (live numeric
+    readout for `rows[idx]` plus the caption text), and a closing disclaimer
+    line is drawn along the bottom of the frame.
+
+    Parameters:
+        rows: full per-step trajectory rows (from read_rows()).
+        beacons: beacon true/estimate rows (from read_beacons()).
+        idx: index into `rows` for the step this frame represents.
+    Returns: a new PIL Image (RGB, 1280x720) for this frame.
+    """
     img = Image.new("RGB", (WIDTH, HEIGHT), (238, 241, 245))
     draw = ImageDraw.Draw(img)
     draw.rectangle((0, 0, WIDTH, 72), fill=(24, 32, 43))
@@ -243,6 +416,36 @@ def render_frame(
 
 
 def main() -> None:
+    """CLI entry point: read trajectory/beacon CSVs and encode the replay video.
+
+    Takes no parameters (arguments come from sys.argv via argparse) and
+    returns nothing. Recognized flags, all optional with defaults matching
+    the flagship one-beacon run's output paths:
+      --trajectory: closed-loop trajectory CSV (default
+        results/closed_loop_local_1beacon.csv).
+      --beacons: beacon true/estimate CSV (default
+        results/beacon_estimates_local_1beacon.csv).
+      --output: destination MP4 path (default
+        figures/ros_gazebo_validation_demo.mp4).
+      --thumbnail: destination still-frame PNG path (default
+        figures/ros_gazebo_validation_thumbnail.png).
+      --fps: output video frame rate (default 20).
+
+    Sequence:
+      1. Load both CSVs via read_rows()/read_beacons(); ensure the output
+         and thumbnail directories exist.
+      2. Build the frame-index sequence to encode: one frame per row of the
+         trajectory (`frame_indices`), then `fps * 2` extra frames all
+         repeating the final index (`hold`) so the video pauses for two
+         seconds on the converged end state instead of cutting immediately.
+      3. Open an H.264 MP4 writer (imageio, libx264, quality=8) and render +
+         append one frame per index in `frame_indices + hold`.
+      4. Separately render a single still frame at step `min(45, len(rows) -
+         1)` (a fixed illustrative step, clamped so it never indexes past
+         the end of a shorter-than-46-step run) and save it as the
+         thumbnail.
+      5. Print the output video and thumbnail paths.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--trajectory", type=Path, default=Path("results/closed_loop_local_1beacon.csv"))
     parser.add_argument("--beacons", type=Path, default=Path("results/beacon_estimates_local_1beacon.csv"))
@@ -256,6 +459,8 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.thumbnail.parent.mkdir(parents=True, exist_ok=True)
 
+    # Play every recorded step once, then hold on the final (most-converged)
+    # frame for two seconds so the video does not end abruptly mid-motion.
     frame_indices = list(range(len(rows)))
     hold = [len(rows) - 1] * (args.fps * 2)
     with imageio.get_writer(args.output, fps=args.fps, codec="libx264", quality=8, macro_block_size=16) as writer:
