@@ -178,6 +178,12 @@ int run_main(int argc, char** argv) {
         supervised_seeking_rows,
         supervised_threshold_rows,
         closed_loop_s1_single);
+    // Deterministic per-step traces behind the papers' policy-comparison
+    // figure (see run_closed_loop_showcase in Simulation.hpp).
+    for (const auto& run : adaptive::run_closed_loop_showcase(config)) {
+        adaptive::write_closed_loop_csv(
+            config.output_dir / ("closed_loop_showcase_" + run.name + ".csv"), run.result);
+    }
     print_run_summary(config, config_path);
     return 0;
 }
