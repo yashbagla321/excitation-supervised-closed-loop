@@ -170,3 +170,7 @@ seeds plus delay-0/2 variants plus the flagship run).
   year   = {2027}
 }
 ```
+
+## License
+
+MIT (see `LICENSE`).
