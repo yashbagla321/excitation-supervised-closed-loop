@@ -9,7 +9,8 @@ supervised_closed_loop_node:
     # simulator's flagship run (config/simulation.ini at the repo root).
     control_gain: 1.2
     exploration_amplitude: 0.25
-    exploration_decay: 0.035
+    # Physical-time rates: s^-1 and rad/s.
+    exploration_decay: 0.5
     exploration_frequency: 0.45
 
     # Accuracy-driven supervision threshold S_bar = sigma^2 / eps_psi^2 with

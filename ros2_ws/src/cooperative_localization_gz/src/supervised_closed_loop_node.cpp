@@ -59,6 +59,7 @@ struct LogRow {
     double sigma_min = -1.0;
     double excitation_norm2 = 0.0;
     bool retriggered = false;
+    bool estimate_ready = false;
     double sim_time = 0.0;
     adaptive::Vec2 command;
     adaptive::Vec2 beacon_estimate;
@@ -83,7 +84,7 @@ public:
         packet_period_ = declare_parameter<double>("packet_period", 0.08);
         control_gain_ = declare_parameter<double>("control_gain", 1.2);
         exploration_amplitude_ = declare_parameter<double>("exploration_amplitude", 0.25);
-        exploration_decay_ = declare_parameter<double>("exploration_decay", 0.035);
+        exploration_decay_ = declare_parameter<double>("exploration_decay", 0.5);
         exploration_frequency_ = declare_parameter<double>("exploration_frequency", 0.45);
         spread_threshold_ = declare_parameter<double>("spread_threshold", 0.16);
         range_sigma_ = declare_parameter<double>("range_sigma", 0.02);
@@ -193,14 +194,25 @@ private:
             pending_.pop_front();
         }
 
-        if (!measurements_.empty()) {
+        if (!estimator_initialized_) {
+            std::vector<double> closed_form_seed;
+            estimator_initialized_ = adaptive::two_view_closed_form_initial_state(
+                1, path_, measurements_, closed_form_seed);
+            if (estimator_initialized_) {
+                state_ = std::move(closed_form_seed);
+            }
+        }
+        if (estimator_initialized_) {
             const auto result = adaptive::gauss_newton(
                 state_,
                 [&](const std::vector<double>& state) {
-                    return adaptive::residuals_scenario1(state, 1, path_, measurements_);
+                    return adaptive::residuals_scenario1(state, 1, path_, measurements_, noise);
                 },
                 solver_max_iterations_,
-                solver_initial_lambda_);
+                solver_initial_lambda_,
+                [&](const std::vector<double>& state) {
+                    return adaptive::jacobian_scenario1(state, 1, path_, measurements_, noise);
+                });
             state_ = result.x;
             target_estimate_ = {state_[0], state_[1]};
             current_cost_ = result.cost;
@@ -224,11 +236,13 @@ private:
             retriggered = true;
         }
 
+        const double current_time = static_cast<double>(step - 1) * packet_period_;
+        const double epoch_time = static_cast<double>(excitation_epoch_ - 1) * packet_period_;
         const double exploration = exploration_amplitude_ *
-            std::exp(-exploration_decay_ * static_cast<double>(step - excitation_epoch_));
+            std::exp(-exploration_decay_ * (current_time - epoch_time));
         const adaptive::Vec2 excitation{
-            exploration * std::cos(exploration_frequency_ * static_cast<double>(step)),
-            exploration * std::sin(exploration_frequency_ * static_cast<double>(step)),
+            exploration * std::cos(exploration_frequency_ * current_time),
+            exploration * std::sin(exploration_frequency_ * current_time),
         };
         const adaptive::Vec2 command =
             (target_estimate_ - robot) * control_gain_ + excitation;
@@ -255,6 +269,7 @@ private:
         row.sigma_min = sigma_min;
         row.excitation_norm2 = adaptive::dot(excitation, excitation);
         row.retriggered = retriggered;
+        row.estimate_ready = estimator_initialized_;
         row.sim_time = sim_time;
         row.command = command;
         if (!beacon_estimates_.empty()) {
@@ -335,7 +350,7 @@ private:
         std::ofstream out(output_path);
         out << "step,robot_x,robot_y,target_estimate_x,target_estimate_y,target_error,goal_error,"
                "beacon_position_rmse,beacon_yaw_rmse,cost,spread,sigma_min,excitation_norm2,"
-               "retriggered,sim_time,cmd_vx,cmd_vy,"
+               "retriggered,estimate_ready,sim_time,cmd_vx,cmd_vy,"
                "beacon_estimate_x,beacon_estimate_y,beacon_estimate_yaw\n";
         out << std::fixed << std::setprecision(8);
         for (const auto& row : rows_) {
@@ -351,7 +366,8 @@ private:
                 out << row.sigma_min;
             }
             out << ',' << row.excitation_norm2 << ',' << (row.retriggered ? 1 : 0) << ','
-                << row.sim_time << ',' << row.command.x << ',' << row.command.y << ','
+                << (row.estimate_ready ? 1 : 0) << ',' << row.sim_time << ','
+                << row.command.x << ',' << row.command.y << ','
                 << row.beacon_estimate.x << ',' << row.beacon_estimate.y << ','
                 << row.beacon_estimate_yaw << '\n';
         }
@@ -364,7 +380,7 @@ private:
     double packet_period_ = 0.08;
     double control_gain_ = 1.2;
     double exploration_amplitude_ = 0.25;
-    double exploration_decay_ = 0.035;
+    double exploration_decay_ = 0.5;
     double exploration_frequency_ = 0.45;
     double spread_threshold_ = 0.16;
     double range_sigma_ = 0.02;
@@ -384,6 +400,7 @@ private:
     // Estimator and supervision state.
     adaptive::World world_;
     std::vector<double> state_;
+    bool estimator_initialized_ = false;
     std::vector<adaptive::BeaconEstimate> beacon_estimates_;
     adaptive::Vec2 target_estimate_;
     std::mt19937 rng_;

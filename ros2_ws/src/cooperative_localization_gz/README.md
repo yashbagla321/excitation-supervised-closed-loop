@@ -16,7 +16,10 @@ estimator only after a configurable sensing delay. Estimation, the spread
 certificate S_v, and the supervision rule are the same library code the
 batch simulator runs; what differs is the plant -- real transport latency
 and zero-order-hold actuation instead of idealized explicit-Euler
-kinematics.
+kinematics. The node retains the target prior until two noncoincident
+vehicle-relative views support the constructive initializer; every later
+packet warm-starts analytic-Jacobian Gauss--Newton. Excitation decay and
+phase use simulation time in seconds (`s^-1` and `rad/s`), not packet index.
 
 ## Build
 
@@ -38,7 +41,8 @@ One launch is one experiment: gz-sim starts, the node paces 120 packets at
 80 ms of simulation time on the bridged `/clock`, writes
 `results/ros_gz/closed_loop_gz_run.csv` (same schema as
 `closed_loop_local_1beacon.csv`, plus sim-time / command / beacon-estimate
-columns), and the launch shuts everything down. Batch runs pass a seed and
+columns). The shared `estimate_ready` column marks the first gauge-free
+two-view estimate. The launch then shuts everything down. Batch runs pass a seed and
 an output name:
 
 ```bash

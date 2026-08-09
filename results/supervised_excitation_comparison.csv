@@ -1,5 +1,5 @@
 excitation,retrigger_count,steps_to_goal_threshold,steps_to_target_threshold,final_goal_error_m,final_target_error_m,final_beacon_position_rmse_m,final_beacon_yaw_rmse_rad,final_cost
-decaying_circular_nominal,0,53,13,0.00189509,0.00046402,0.00238362,0.00052915,103.44770991
-excitation_supervised_nominal,2,53,12,0.00210992,0.00046703,0.00235753,0.00052068,103.44866027
-decaying_circular_understimulated,0,0,0,0.00233747,0.00081805,0.09505899,0.02738516,103.45753652
-excitation_supervised_understimulated,69,0,0,0.00240303,0.00097031,0.02450505,0.00717899,103.46525386
+decaying_circular_nominal,0,56,14,0.00097182,0.00260170,0.00480024,0.00139665,268.64646845
+excitation_supervised_nominal,2,56,14,0.00105229,0.00260105,0.00480189,0.00139703,268.64738748
+decaying_circular_understimulated,0,0,0,0.00232813,0.00278051,0.32301284,0.09325439,268.36635179
+excitation_supervised_understimulated,36,0,0,0.00166473,0.00231183,0.01359536,0.00406330,269.50464730
