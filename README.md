@@ -2,7 +2,8 @@
 
 Code and data for the paper *"Excitation-Supervised Closed-Loop
 Self-Calibration and Target Seeking for an Unknown-Pose Range-Bearing
-Relay"* (arXiv preprint forthcoming).
+Relay"* (arXiv preprint forthcoming). Each release is archived on Zenodo:
+[doi:10.5281/zenodo.21864697](https://doi.org/10.5281/zenodo.21864697).
 
 This repository is a dependency-free C++17 simulation harness for the
 paper's closed-loop controller: it decides online, from the same
