@@ -1,4 +1,4 @@
-// Excitation-supervised closed-loop control (Algorithm 1 of the CDC paper)
+// Excitation-supervised closed-loop control (Algorithm 1 of the paper)
 // executed software-in-the-loop through ROS 2 and Gazebo:
 //
 //   - the VEHICLE is a Gazebo model; its motion is integrated by the Gazebo

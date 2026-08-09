@@ -9,16 +9,17 @@
 #include "adaptive_localization/Simulation.hpp"
 
 // This entry point is trimmed to the closed-loop excitation-supervision
-// study cited by the CDC paper "Excitation-Supervised Closed-Loop
+// study cited by the paper "Excitation-Supervised Closed-Loop
 // Self-Calibration and Target Seeking for an Unknown-Pose Range-Bearing
 // Relay". The estimator core (include/, src/*.cpp other than this file) is
-// shared verbatim with the companion ACC repository, which runs the
-// open-loop identifiability/robustness sweeps this file does not exercise.
+// shared verbatim with the companion trajectory-induced-self-calibration
+// repository, which runs the open-loop identifiability/robustness sweeps
+// this file does not exercise.
 
 namespace {
 
 // Writes every artifact this program's run produces, in the same order the
-// CDC closed-loop paper's tables/figures reference them:
+// closed-loop paper's tables/figures reference them:
 //   - `supervised_excitation_comparison.csv`: rows from
 //     run_supervised_excitation_comparison(), i.e. the fixed decaying-circular
 //     schedule vs. the excitation-supervised controller (Algorithm 1), for
@@ -84,7 +85,7 @@ void write_all_outputs(
 //   config_path: the config file path that was passed to load_config(),
 //     echoed back so the printed summary is self-describing.
 void print_run_summary(const adaptive::SimulationConfig& config, const std::filesystem::path& config_path) {
-    std::cout << "CDC closed-loop simulation complete.\n";
+    std::cout << "Closed-loop simulation complete.\n";
     std::cout << "Config: " << config_path.string() << "\n";
     std::cout << "Output directory: " << config.output_dir.string() << "\n\n";
     std::cout << "Wrote " << (config.output_dir / "supervised_excitation_comparison.csv").string() << "\n";
@@ -100,7 +101,7 @@ void print_run_summary(const adaptive::SimulationConfig& config, const std::file
 
 }  // namespace
 
-// Drives the five studies this CDC-paper entry point exists to produce, then
+// Drives the five studies this entry point exists to produce, then
 // writes their outputs. Split out from main() so exceptions can be caught in
 // one place (see main()) while this function's control flow stays linear and
 // easy to read top-to-bottom.
