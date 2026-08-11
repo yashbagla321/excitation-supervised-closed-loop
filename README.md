@@ -20,11 +20,18 @@ open-loop identifiability/robustness sweeps instead.
 
 ## Controller
 
-`u = -k(q - p_hat) + u_exp(t)`, with `u_exp(t) = A e^{-lambda(t - t0)}
+`u = u_seek + u_exp(t)`, with `u_exp(t) = A e^{-lambda(t - t0)}
 [cos(omega t), sin(omega t)]^T` a decaying circular excitation whose epoch
 `t0` resets whenever the stored window's trajectory spread `S_v` (computed
 from the known measurement poses) falls below the threshold `S_bar`
-(Algorithm 1 in the paper). Conditioning (`sigma_min` of the whitened
+(Algorithm 1 in the paper). While the window is underexcited, the nominal
+seeking velocity `-k(q - p_hat)` is projected onto the half-space
+`{v : v^T n(t) >= -A e^{-lambda T_bar} / pi}`, where
+`n(t) = (-1)^floor(omega t / pi) e_y` is the current excitation
+half-period's push direction: only the seeking component opposing `n(t)`
+is clipped, so the paper's finite-acquisition guarantee covers the
+controller as implemented, and the unprojected law is restored exactly
+once `S_v >= S_bar`. Conditioning (`sigma_min` of the whitened
 stacked Jacobian) is logged per packet as a diagnostic but is deliberately
 not a trigger: the finite-acquisition guarantee covers exactly the spread
 certificate. The default `S_bar = 0.16` comes from the paper's
@@ -95,18 +102,23 @@ into `results/`. Pass a different config path as the first argument.
 
 `scripts/check_acquisition_assumptions.py` (stdlib only) re-derives the
 paper's assumptions-versus-implementation numbers for the finite-acquisition
-proposition directly from these committed per-packet logs and asserts every
-expected finding.
+proposition directly from these committed per-packet logs, verifies the
+seeking-projection invariant on every underexcited packet, and asserts every
+expected finding. `scripts/aggregate_gazebo_batch.py` (stdlib only)
+recomputes the Gazebo table from `results/ros_gz/`: per-run final errors,
+the across-seed RMS row, retrigger counts, and the packet at which the
+spread certificate clears `S_bar`.
 
 All error/RMSE/reset-count columns are seed-deterministic given a fixed
 `std::mt19937` stream, but exact bit-for-bit reproduction of the committed
 CSVs additionally requires the same C++ standard library implementation
 used to generate them (this repo's checked-in results were built with
-MSVC's STL on Windows): `std::normal_distribution`'s sample sequence for a
-given engine state is implementation-defined, not specified by the C++
-standard, so `sample_noise()` (`include/adaptive_localization/Math.hpp`)
-can draw a different-but-statistically-equivalent sequence on, e.g.,
-libstdc++ or libc++. Rebuilding on a different standard library will
+MinGW GCC's libstdc++ on Windows): `std::normal_distribution`'s sample
+sequence for a given engine state is implementation-defined, not specified
+by the C++ standard, so `sample_noise()`
+(`include/adaptive_localization/Math.hpp`) can draw a
+different-but-statistically-equivalent sequence on, e.g., MSVC's STL or
+libc++. Rebuilding on a different standard library will
 reproduce the same trends and conclusions but not necessarily identical
 values to the last decimal place.
 

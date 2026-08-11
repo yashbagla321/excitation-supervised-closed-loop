@@ -1,12 +1,14 @@
 """Check the finite-acquisition proposition's assumptions against the runs.
 
 The paper's finite-acquisition proposition guarantees the supervised
-controller accumulates the spread threshold S_bar in finite time T* under
-four assumptions on the controller u = -k(q - p_hat) + u_exp:
+controller accumulates the spread threshold S_bar within an explicit time
+T* under four hypotheses on the controller u = u_seek + u_exp:
 
   (i)   packets stored with inter-sample times in [T_, Tbar];
-  (ii)  bounded seeking during underexcited operation,
-        k*||q - p_hat|| <= D with pi*D <= A*exp(-lambda*Tbar);
+  (ii)  projected seeking during underexcited operation,
+        u_seek(t)' * n(t) >= -A*exp(-lambda*Tbar)/pi with
+        n(t) = (-1)^floor(omega*t/pi) * e_y, enforced by construction
+        (Algorithm 1 projects -k(q - p_hat) onto that half-space);
   (iii) sampling fast relative to the excitation,
         8*omega*Tbar <= exp(-lambda*Tbar);
   (iv)  the stored window is cumulative (no eviction).
@@ -17,23 +19,30 @@ discussion from the committed per-packet run logs in `results/` (written by
 the C++ binary) plus the controller constants of `config/simulation.ini`,
 so the check is empirical rather than nominal. For row i of a run log, the
 control at step i used the pre-update position of row i-1 and the target
-estimate of row i; underexcited packets are the rows with retriggered = 1.
+estimate of row i; underexcited packets are the rows with retriggered = 1,
+and on those packets the epoch was reset, so u_exp acts at full amplitude
+with absolute phase omega*(step-1)*dt. The projection invariant (ii) is
+reconstructed from u = dq/dt (exact under the Euler update) minus u_exp,
+with a tolerance covering the 8-decimal CSV quantization.
 
 Expected findings (asserted at the bottom):
   - (i) holds exactly (fixed dt), (iv) holds by construction;
   - (iii) holds across the entire decay sweep, first failing only beyond
-    lambda ~ 15.6 1/s;
-  - (ii) fails once the swirl orbit opens: it caps ||q - p_hat|| at
-    A*exp(-lambda*Tbar)/(pi*k) = 5.7 cm (lambda = 2), while the steady
-    orbit radius is A/sqrt(k^2 + omega^2) = 19.5 cm, so the amplitude
-    cancels and (ii) reduces to pi*k <= sqrt(k^2 + omega^2)*exp(-lambda*Tbar),
-    a seeking-gain cap of k <= 0.127 1/s that the implemented k = 1.2
-    exceeds tenfold. The no-transient run satisfies (ii) on exactly its
-    first four underexcited packets and peaks at 3.4x the allowance;
-  - acquisition still completes at packet 37 (2.9 s), more than thirty
-    times inside T* <= 97.7 s, because the proof treats seeking as an
-    adversarial disturbance (the actual term is centripetal about p_hat)
-    and credits only two stored packets per ~175-packet excitation period.
+    lambda ~ 15.6 1/s; it also implies the proof's sliver inequality
+    2*(omega*Tbar)^2 <= exp(-lambda*Tbar) with a wide margin;
+  - (ii) holds on every underexcited packet of every supervised log.
+    The projection exists because the unprojected law would violate the
+    bound: the steady swirl orbit A/sqrt(k^2 + omega^2) = 19.5 cm gives
+    pi*k*||q - p_hat|| = 3.45x the allowance independent of A, i.e. an
+    unclipped seeking gain would need k <= 0.127 1/s where 1.2 is
+    implemented. The clip binds on 15 of the 31 underexcited packets of
+    the no-transient run, and the freed orbit opens to a 23.6 cm plateau;
+  - acquisition completes at packet 32 (2.5 s), a factor of 22 inside
+    T* <= 55.9 s at lambda = 2 under the two-packets-per-half-period bound
+    T* <= (pi/omega)*(ceil(2*S_bar/delta^2) + 2), delta = A*exp(-lambda*
+    Tbar)/(2*omega); the remaining conservatism is structural, since the
+    proof credits only two stored packets per ~87-packet half-period and
+    treats the projected seeking as an adversarial disturbance.
 """
 
 from __future__ import annotations
@@ -54,6 +63,11 @@ SBAR = 0.16    # supervised_spread_threshold [m^2]
 
 SWEEP_LAMBDAS = [0.02, 0.05, 0.10, 0.25, 0.50, 1.0, 2.0]
 
+# One CSV position digit is 1e-8 m; dividing dq by dt = 0.08 s inflates the
+# rounding to 1.25e-7 m/s, so 1e-6 cleanly separates real violations from
+# quantization while staying five orders below the projection level b.
+QUANT_TOL = 1e-6
+
 
 def load(name: str) -> list[dict[str, float | None]]:
     with (RESULTS / name).open(newline="") as handle:
@@ -67,19 +81,29 @@ def tstar_seconds(lam: float) -> tuple[float, float]:
     """T* bound and its per-half-period displacement delta at decay lam."""
     delta = A * math.exp(-lam * DT) / (2.0 * OMEGA)
     n = math.ceil(2.0 * SBAR / delta**2)
-    return (2.0 * math.pi / OMEGA) * (n + 1), delta
+    return (math.pi / OMEGA) * (n + 2), delta
 
 
-def underexcited_seek_distances(rows: list[dict]) -> list[tuple[int, float]]:
-    """(step, ||q_pre - p_hat||) for every retriggered packet of a run."""
+def underexcited_packets(rows: list[dict], lam: float) -> list[dict]:
+    """Per retriggered packet: step, ||q_pre - p_hat||, and the projection
+    margin u_seek' n + b (>= 0 up to quantization iff (ii) holds)."""
+    b = A * math.exp(-lam * DT) / math.pi
     out = []
     for i in range(1, len(rows)):
-        if rows[i]["retriggered"] == 1.0:
-            out.append((
-                int(rows[i]["step"]),
-                math.hypot(rows[i - 1]["robot_x"] - rows[i]["target_estimate_x"],
-                           rows[i - 1]["robot_y"] - rows[i]["target_estimate_y"]),
-            ))
+        if rows[i]["retriggered"] != 1.0:
+            continue
+        r, prev = rows[i], rows[i - 1]
+        t = (r["step"] - 1) * DT
+        u_y = (r["robot_y"] - prev["robot_y"]) / DT
+        seek_y = u_y - A * math.sin(OMEGA * t)   # epoch reset => full amplitude
+        sign = 1.0 if math.floor(OMEGA * t / math.pi) % 2 == 0 else -1.0
+        out.append({
+            "step": int(r["step"]),
+            "dist": math.hypot(prev["robot_x"] - r["target_estimate_x"],
+                               prev["robot_y"] - r["target_estimate_y"]),
+            "margin": sign * seek_y + b,
+            "binding": abs(sign * seek_y + b) <= QUANT_TOL,
+        })
     return out
 
 
@@ -97,6 +121,10 @@ def main() -> None:
         print(f"  lambda={lam:>5}: {lhs:.3f} <= {rhs:.3f}  PASS")
     lam_break = math.log(1.0 / lhs) / DT
     print(f"  first failure beyond lambda = {lam_break:.2f} 1/s")
+    sliver = 2.0 * (OMEGA * DT) ** 2
+    print(f"  implied sliver bound 2*(omega*Tbar)^2 = {sliver:.5f} <= "
+          f"exp(-lambda*Tbar) >= {math.exp(-SWEEP_LAMBDAS[-1] * DT):.3f}  PASS")
+    assert sliver <= math.exp(-SWEEP_LAMBDAS[-1] * DT)
 
     lam = 2.0  # the no-transient (understimulated) showcase decay
     tstar, delta = tstar_seconds(lam)
@@ -104,54 +132,60 @@ def main() -> None:
           f"T* <= {tstar:.1f} s ({tstar / DT:.0f} packets)")
 
     rows = load("closed_loop_showcase_understimulated_supervised.csv")
-    under = underexcited_seek_distances(rows)
-    steps = [s for s, _ in under]
+    under = underexcited_packets(rows, lam)
+    steps = [p["step"] for p in under]
     assert steps == list(range(1, len(steps) + 1)), "retriggers not a contiguous prefix"
     clear_packet = steps[-1] + 1
     clear_time = (clear_packet - 1) * DT
-    allowance = A * math.exp(-lam * DT)          # cap on pi*D
-    d_cap = allowance / (math.pi * K)            # implied cap on ||q - p_hat||
-    orbit = A / math.sqrt(K**2 + OMEGA**2)       # steady swirl-orbit radius
-    d_max = max(d for _, d in under)
-    satisfying = [s for s, d in under if math.pi * K * d <= allowance]
-    peak_ratio = math.pi * K * d_max / allowance
+    b = A * math.exp(-lam * DT) / math.pi
+    worst_margin = min(p["margin"] for p in under)
+    binding = sum(1 for p in under if p["binding"])
+    orbit = A / math.sqrt(K**2 + OMEGA**2)       # unprojected steady orbit
+    d_max = max(math.hypot(rows[i - 1]["robot_x"] - rows[i]["target_estimate_x"],
+                           rows[i - 1]["robot_y"] - rows[i]["target_estimate_y"])
+                for i in range(1, len(rows)))
     structural = math.pi * K / (math.sqrt(K**2 + OMEGA**2) * math.exp(-lam * DT))
-    period_packets = 2.0 * math.pi / (OMEGA * DT)
+    half_period_packets = math.pi / (OMEGA * DT)
 
     print("\nNo-transient supervised run "
           "(closed_loop_showcase_understimulated_supervised.csv):")
     print(f"  {len(under)} underexcited packets (contiguous prefix), threshold "
           f"clears at packet {clear_packet} ({clear_time:.2f} s), "
           f"{tstar / clear_time:.1f}x inside T*")
-    print(f"  (ii) caps ||q - p_hat|| at {d_cap * 100:.1f} cm; steady orbit radius "
-          f"A/sqrt(k^2+omega^2) = {orbit * 100:.1f} cm; measured plateau "
-          f"{d_max * 100:.1f} cm")
-    print(f"  (ii) satisfied on packets {satisfying} only; peak "
-          f"pi*k*||q - p_hat|| = {math.pi * K * d_max:.2f} against "
-          f"A*exp(-lambda*Tbar) = {allowance:.2f} ({peak_ratio:.2f}x)")
-    print(f"  steady-orbit prediction pi*k/(sqrt(k^2+omega^2)*exp(-lambda*Tbar)) "
-          f"= {structural:.2f}")
-    print(f"  gain cap from (ii): k <= "
-          f"{math.sqrt(allowance**2 / A**2 * OMEGA**2 / (math.pi**2 - allowance**2 / A**2)):.3f} 1/s"
-          f"  (implemented k = {K})")
-    print(f"  excitation period holds {period_packets:.0f} packets; the proof "
-          f"credits 2; half-period = {period_packets / 2:.0f} packets > "
-          f"{len(under)} underexcited packets")
+    print(f"  (ii) projection level b = A*exp(-lambda*Tbar)/pi = {b:.4f} m/s; "
+          f"worst margin u_seek' n + b = {worst_margin:.2e} (>= -{QUANT_TOL:.0e})")
+    print(f"  clip binds on {binding}/{len(under)} underexcited packets; "
+          f"unprojected orbit A/sqrt(k^2+omega^2) = {orbit * 100:.1f} cm opens to "
+          f"a measured {d_max * 100:.1f} cm plateau")
+    gain_cap = OMEGA / math.sqrt(math.pi**2 * math.exp(2.0 * lam * DT) - 1.0)
+    print(f"  why the projection exists: the unprojected law gives "
+          f"pi*k*||q - p_hat|| = {structural:.2f}x the allowance at the steady "
+          f"orbit (amplitude-independent), i.e. an unclipped gain cap of "
+          f"k <= {gain_cap:.3f} 1/s against the implemented k = {K}")
+    print(f"  half-period holds {half_period_packets:.0f} packets; the proof "
+          f"credits 2 stored packets per half-period")
 
-    print("\nTransient runs (for contrast; the transit itself supplies spread):")
-    for name in ["closed_loop_local_1beacon.csv"] + [
-            f"closed_loop_showcase_seeking_ring_{i}.csv" for i in range(6)]:
-        run = underexcited_seek_distances(load(name))
-        if run:
-            print(f"  {name}: {len(run)} underexcited packets, "
-                  f"max ||q - p_hat|| = {max(d for _, d in run) * 100:.0f} cm "
-                  "(far outside (ii); certification arrives from the transit)")
+    print("\nProjection invariant on every supervised log with retriggers:")
+    worst_all = worst_margin
+    for name in (["closed_loop_local_1beacon.csv"]
+                 + [f"closed_loop_showcase_seeking_ring_{i}.csv" for i in range(6)]):
+        lam_run = 0.50 if name == "closed_loop_local_1beacon.csv" else 2.0
+        run = underexcited_packets(load(name), lam_run)
+        if not run:
+            continue
+        wm = min(p["margin"] for p in run)
+        worst_all = min(worst_all, wm)
+        print(f"  {name}: {len(run)} underexcited packets, "
+              f"worst margin {wm:.2e}, max ||q - p_hat|| = "
+              f"{max(p['dist'] for p in run) * 100:.0f} cm")
 
-    assert satisfying == [1, 2, 3, 4]
-    assert abs(peak_ratio - 3.44) < 0.05
+    assert worst_all >= -QUANT_TOL, "projection invariant violated"
+    assert binding == 15 and len(under) == 31
+    assert abs(d_max - 0.236) < 0.005
     assert abs(structural - 3.45) < 0.05
-    assert clear_packet == 37
-    assert tstar / clear_time > 30.0
+    assert clear_packet == 32
+    assert abs(tstar - 55.9) < 0.1
+    assert tstar / clear_time > 20.0
     print("\nAll expected findings hold.")
 
 
