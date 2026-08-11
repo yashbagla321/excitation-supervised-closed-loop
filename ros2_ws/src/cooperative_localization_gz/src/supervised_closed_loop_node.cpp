@@ -19,7 +19,6 @@
 // closed_loop_local_1beacon.csv (plus sim-time and command columns) and
 // shuts down when the packet budget is exhausted.
 
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <deque>
@@ -247,21 +246,12 @@ private:
         };
         adaptive::Vec2 seeking = (target_estimate_ - robot) * control_gain_;
         if (retriggered && exploration_amplitude_ > 0.0) {
-            // Directional seeking projection (Algorithm 1), mirroring the
-            // batch simulator: while the delivered window is underexcited,
-            // the seeking component opposing the current excitation
-            // half-period's push direction n = (-1)^floor(w t / pi) e_y is
-            // clipped at b = A e^{-lambda T_bar} / pi, so the published
-            // command is covered by the finite-acquisition guarantee.
-            const double allowance = exploration_amplitude_ *
-                std::exp(-exploration_decay_ * packet_period_) / adaptive::kPi;
-            const long long half_period = static_cast<long long>(
-                std::floor(exploration_frequency_ * current_time / adaptive::kPi));
-            if (half_period % 2 == 0) {
-                seeking.y = std::max(seeking.y, -allowance);
-            } else {
-                seeking.y = std::min(seeking.y, allowance);
-            }
+            // Directional seeking projection (Algorithm 1), shared with the
+            // batch simulator via Math.hpp, so the published command is
+            // covered by the finite-acquisition guarantee.
+            seeking = adaptive::project_seeking_velocity(
+                seeking, exploration_amplitude_, exploration_decay_,
+                packet_period_, exploration_frequency_, current_time);
         }
         const adaptive::Vec2 command = seeking + excitation;
 
