@@ -8,8 +8,8 @@ authors:
 repository-code: "https://github.com/yashbagla321/excitation-supervised-closed-loop"
 doi: 10.5281/zenodo.21864697
 license: MIT
-version: 1.0.0
-date-released: "2026-08-09"
+version: 1.1.0
+date-released: "2026-08-11"
 preferred-citation:
   type: unpublished
   title: "Excitation-Supervised Closed-Loop Self-Calibration and Target Seeking for an Unknown-Pose Range-Bearing Relay"
