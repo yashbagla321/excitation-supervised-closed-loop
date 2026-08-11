@@ -11,7 +11,8 @@ trajectory-spread margin `S_v` used for identifiability, whether the
 stored measurement window is excited enough to trust the current
 calibration estimate, retriggering exploratory motion when it is not. The
 estimator core here is shared with the companion identifiability paper
-([trajectory-induced-self-calibration](https://github.com/yashbagla321/trajectory-induced-self-calibration)),
+([arXiv:2608.09464](https://arxiv.org/abs/2608.09464), code in
+[trajectory-induced-self-calibration](https://github.com/yashbagla321/trajectory-induced-self-calibration)),
 which proves the static two-view identifiability result this controller
 builds on. This repository's `main.cpp` is trimmed to the closed-loop
 supervision study this paper cites; the companion repository runs the
