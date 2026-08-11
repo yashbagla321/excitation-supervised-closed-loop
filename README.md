@@ -91,6 +91,12 @@ into `results/`. Pass a different config path as the first argument.
 | `results/supervised_threshold_ablation.csv` | Table III (spread-threshold ablation over `S_bar` in {0.05, 0.16, 1.0, 9.04}: design-rule prediction vs. measured yaw RMSE, packets to certify, path length, excitation effort) |
 | `results/supervised_seeking_comparison.csv` | Section V-E (target-seeking scenario: both policies succeed in all 100 paired trials — incidental excitation from ordinary motion suffices) |
 | `results/supervised_excitation_comparison.csv` | Section V-C nominal-scenario comparison (fixed vs. supervised beacon-position/yaw error when the fixed schedule happens to be adequate) |
+| `results/closed_loop_showcase_understimulated_*.csv`, `results/closed_loop_showcase_seeking_ring_*.csv` | Policy-showcase figure (fixed / information-gradient / supervised on identical no-transient packets, plus the six-start seeking-ring variety panel) |
+
+`scripts/check_acquisition_assumptions.py` (stdlib only) re-derives the
+paper's assumptions-versus-implementation numbers for the finite-acquisition
+proposition directly from these committed per-packet logs and asserts every
+expected finding.
 
 All error/RMSE/reset-count columns are seed-deterministic given a fixed
 `std::mt19937` stream, but exact bit-for-bit reproduction of the committed
