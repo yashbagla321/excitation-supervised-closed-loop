@@ -2,7 +2,8 @@
 
 Code and data for the paper *"Excitation-Supervised Closed-Loop
 Self-Calibration and Target Seeking for an Unknown-Pose Range-Bearing
-Relay"* (arXiv preprint forthcoming). Each release is archived on Zenodo:
+Relay"*
+([arXiv:2608.12528](https://arxiv.org/abs/2608.12528)). Each release is archived on Zenodo:
 [doi:10.5281/zenodo.21892671](https://doi.org/10.5281/zenodo.21892671).
 
 This repository is a dependency-free C++17 simulation harness for the
@@ -185,7 +186,7 @@ seeds plus delay-0/2 variants plus the flagship run).
   author = {Bagla, Yash},
   title  = {Excitation-Supervised Closed-Loop Self-Calibration and Target
             Seeking for an Unknown-Pose Range-Bearing Relay},
-  note   = {arXiv preprint},
+  note   = {arXiv:2608.12528},
   year   = {2026}
 }
 ```
