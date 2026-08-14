@@ -146,8 +146,8 @@ Python scripts depend on Pillow, numpy, and imageio; install with
 
 ## ROS 2 / Gazebo software-in-the-loop experiment
 
-`ros2_ws/src/cooperative_localization_gz` runs Algorithm 1 genuinely
-through the ROS 2 / Gazebo stack rather than replaying simulator output:
+`ros2_ws/src/cooperative_localization_gz` runs Algorithm 1 through the
+ROS 2 / Gazebo stack rather than replaying simulator output:
 `supervised_closed_loop_node` publishes planar velocity commands over
 `ros_gz_bridge` to a vehicle model integrated by the Gazebo physics engine,
 consumes the odometry Gazebo publishes back, emulates range--bearing
@@ -181,15 +181,25 @@ seeds plus delay-0/2 variants plus the flagship run).
 
 ## Citation
 
+If you use this code, or build on the paper's results or concepts, please
+cite the paper:
+
 ```bibtex
-@unpublished{bagla2027excitationsupervised,
-  author = {Bagla, Yash},
-  title  = {Excitation-Supervised Closed-Loop Self-Calibration and Target
-            Seeking for an Unknown-Pose Range-Bearing Relay},
-  note   = {arXiv:2608.12528},
-  year   = {2026}
+@misc{bagla2027excitationsupervised,
+  author        = {Bagla, Yash},
+  title         = {Excitation-Supervised Closed-Loop Self-Calibration and
+                   Target Seeking for an Unknown-Pose Range-Bearing Relay},
+  year          = {2026},
+  eprint        = {2608.12528},
+  archivePrefix = {arXiv},
+  primaryClass  = {eess.SY},
+  doi           = {10.48550/arXiv.2608.12528},
+  url           = {https://arxiv.org/abs/2608.12528}
 }
 ```
+
+To cite this software artifact specifically, use the version DOI from the
+Zenodo archive (see `CITATION.cff`).
 
 ## License
 
