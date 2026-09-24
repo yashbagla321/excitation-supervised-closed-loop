@@ -4,7 +4,9 @@ Code and data for the paper *"Excitation-Supervised Closed-Loop
 Self-Calibration and Target Seeking for an Unknown-Pose Range-Bearing
 Relay"*
 ([arXiv:2608.12528](https://arxiv.org/abs/2608.12528)). Each release is archived on Zenodo:
-[doi:10.5281/zenodo.21892671](https://doi.org/10.5281/zenodo.21892671).
+[doi:10.5281/zenodo.21864696](https://doi.org/10.5281/zenodo.21864696)
+(concept DOI, resolves to the latest release; the paper pins
+[v1.2.0](https://doi.org/10.5281/zenodo.21892671)).
 
 This repository is a dependency-free C++17 simulation harness for the
 paper's closed-loop controller: it decides online, from the same
@@ -178,6 +180,34 @@ columns), and shuts the simulator down when the packet budget ends. Add
 in the scene each packet through the bridged `set_pose` service.
 `./scripts/run_gazebo_batch.sh` reproduces the paper's full batch (ten
 seeds plus delay-0/2 variants plus the flagship run).
+
+## Related research sequence
+
+Three papers build on one another, each relaxing an assumption of the last.
+This repository backs the second.
+
+1. **Trajectory-induced identifiability** —
+   [arXiv:2608.09464](https://arxiv.org/abs/2608.09464)
+   ([code](https://github.com/yashbagla321/trajectory-induced-self-calibration)).
+   Two distinct vehicle-relative observations remove the relay's
+   calibration gauge and make a hidden target's relay-local packet
+   globally actionable, with the spread margin `S_v` explaining estimator
+   conditioning. The result is static: it classifies a stored window after
+   the fact.
+2. **Excitation-supervised control** (this repository) —
+   [arXiv:2608.12528](https://arxiv.org/abs/2608.12528). Places that
+   estimator inside a control loop: the same spread margin becomes an
+   online certificate that triggers excitation resets, with a
+   finite-acquisition guarantee and an excitation budget chosen from a
+   target calibration accuracy rather than heuristically. The vehicle
+   trajectory is still globally referenced.
+3. **Anchor-free certified seeking** —
+   [arXiv:2609.27905](https://arxiv.org/abs/2609.27905)
+   ([code](https://github.com/yashbagla321/gps-free-hidden-target-seeking)).
+   Removes the global trajectory anchor entirely: the full `SE(2)` gauge is
+   retained, only the control-relevant quotient is estimated from
+   integrated odometry, and the cross-view pose correlations that then
+   dominate calibration uncertainty are carried into the certificate.
 
 ## Citation
 

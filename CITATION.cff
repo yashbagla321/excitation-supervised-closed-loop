@@ -6,10 +6,13 @@ authors:
   - family-names: Bagla
     given-names: Yash
 repository-code: "https://github.com/yashbagla321/excitation-supervised-closed-loop"
-doi: 10.5281/zenodo.21892671
+# Zenodo concept DOI: always resolves to the newest archived release, so this
+# line never needs a post-tag patch. The paper pins the exact version it used
+# (v1.2.0, 10.5281/zenodo.21892671); per-version DOIs remain on Zenodo.
+doi: 10.5281/zenodo.21864696
 license: MIT
-version: 1.2.0
-date-released: "2026-08-11"
+version: 1.3.0
+date-released: "2026-09-24"
 preferred-citation:
   type: unpublished
   title: "Excitation-Supervised Closed-Loop Self-Calibration and Target Seeking for an Unknown-Pose Range-Bearing Relay"
@@ -22,3 +25,29 @@ preferred-citation:
   identifiers:
     - type: other
       value: "arXiv:2608.12528"
+# Companion papers in the same research sequence. These are context, not the
+# citation GitHub renders -- preferred-citation above stays this repository's
+# own paper so the generated "Cite this repository" entry is unambiguous.
+references:
+  - type: unpublished
+    title: "Trajectory-Induced Self-Calibration for Hidden-Target Localization Through an Unknown-Pose Range-Bearing Relay"
+    authors:
+      - family-names: Bagla
+        given-names: Yash
+    year: 2026
+    doi: 10.48550/arXiv.2608.09464
+    url: "https://arxiv.org/abs/2608.09464"
+    identifiers:
+      - type: other
+        value: "arXiv:2608.09464"
+  - type: unpublished
+    title: "Anchor-Free Hidden-Target Seeking via Certified Self-Calibration under Correlated Odometry"
+    authors:
+      - family-names: Bagla
+        given-names: Yash
+    year: 2026
+    doi: 10.48550/arXiv.2609.27905
+    url: "https://arxiv.org/abs/2609.27905"
+    identifiers:
+      - type: other
+        value: "arXiv:2609.27905"
